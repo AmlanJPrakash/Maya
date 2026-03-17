@@ -1,0 +1,141 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: userId (UID)
+// Fields:
+//   - uid: string (required)
+//   - email: string (required, email format)
+//   - displayName: string (optional)
+//   - createdAt: timestamp (required)
+//
+// Collection: children
+// Document ID: childId
+// Fields:
+//   - userId: string (required) - Owner UID
+//   - name: string (required)
+//   - age: number (optional)
+//   - personalityTraits: list (optional)
+//   - preferences: map (optional)
+//   - voiceTone: string (optional)
+//   - createdAt: timestamp (required)
+//
+// Collection: children/{childId}/memories
+// Fields:
+//   - childId: string (required)
+//   - userId: string (required)
+//   - content: string (required, max 2000 chars)
+//   - category: string (required, enum)
+//   - timestamp: timestamp (required)
+//
+// Collection: children/{childId}/interactions
+// Fields:
+//   - childId: string (required)
+//   - userId: string (required)
+//   - message: string (required)
+//   - response: string (required)
+//   - emotion: string (optional)
+//   - timestamp: timestamp (required)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidChild(data) {
+      return data.keys().hasAll(['userId', 'name', 'gender', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.gender in ['boy', 'girl'] &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidMemory(data) {
+      return data.keys().hasAll(['childId', 'userId', 'content', 'category', 'timestamp']) &&
+             data.userId == request.auth.uid &&
+             data.content is string && data.content.size() > 0 && data.content.size() <= 2000 &&
+             data.category in ['behavior', 'preference', 'event', 'trait'] &&
+             isValidTimestamp(data.timestamp);
+    }
+
+    function isValidInteraction(data) {
+      return data.keys().hasAll(['childId', 'userId', 'message', 'response', 'timestamp']) &&
+             data.userId == request.auth.uid &&
+             data.message is string && data.message.size() > 0 &&
+             data.response is string && data.response.size() > 0 &&
+             isValidTimestamp(data.timestamp);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    match /children/{childId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && isValidChild(request.resource.data);
+      allow update: if isDocOwner() && isValidChild(request.resource.data) &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isDocOwner();
+
+      match /memories/{memoryId} {
+        allow read: if isAuthenticated() && get(/databases/$(database)/documents/children/$(childId)).data.userId == request.auth.uid;
+        allow create: if isAuthenticated() && isValidMemory(request.resource.data) && 
+                      request.resource.data.childId == childId;
+        allow update: if isAuthenticated() && isValidMemory(request.resource.data) && 
+                      request.resource.data.userId == request.auth.uid &&
+                      resource.data.userId == request.auth.uid;
+        allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      }
+
+      match /interactions/{interactionId} {
+        allow read: if isAuthenticated() && get(/databases/$(database)/documents/children/$(childId)).data.userId == request.auth.uid;
+        allow create: if isAuthenticated() && isValidInteraction(request.resource.data) && 
+                      request.resource.data.childId == childId;
+      }
+    }
+  }
+}

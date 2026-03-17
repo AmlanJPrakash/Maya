@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Child": {
+      "title": "Child",
+      "description": "The digital child's personality and traits",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "age": { "type": "number" },
+        "personalityTraits": { "type": "array", "items": { "type": "string" } },
+        "preferences": { "type": "object" },
+        "voiceTone": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name"]
+    },
+    "Memory": {
+      "title": "Memory",
+      "description": "A shared memory or behavior trait to train the AI",
+      "type": "object",
+      "properties": {
+        "childId": { "type": "string" },
+        "userId": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string", "enum": ["behavior", "preference", "event", "trait"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["childId", "userId", "content"]
+    },
+    "Interaction": {
+      "title": "Interaction",
+      "description": "A record of a conversation or interaction",
+      "type": "object",
+      "properties": {
+        "childId": { "type": "string" },
+        "userId": { "type": "string" },
+        "message": { "type": "string" },
+        "response": { "type": "string" },
+        "emotion": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["childId", "userId", "message", "response"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/children/{childId}": {
+      "schema": "Child",
+      "description": "Digital child profiles"
+    },
+    "/children/{childId}/memories/{memoryId}": {
+      "schema": "Memory",
+      "description": "Memories associated with a child"
+    },
+    "/children/{childId}/interactions/{interactionId}": {
+      "schema": "Interaction",
+      "description": "Interaction history"
+    }
+  }
+}
